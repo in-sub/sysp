@@ -11,6 +11,10 @@
 #include	<sys/time.h>
 #include	"crossyRoad.h"
 
+/*
+github testing
+*/
+
 struct ppball 	the_ball;
 struct car_t	the_cars[CAR_NUM];
 int		game_over = 0;
