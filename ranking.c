@@ -4,68 +4,33 @@
 #include	<stdlib.h>
 #include	<string.h>
 #include	<curses.h>
-//#include	"crossyRoad.h"
+#include	"crossyRoad.h"
 
-#define LINELEN 512
-
-
-struct record{
-	int rank;
-	char name[20];
-	int stage;
-	int score;
-};
+#define LINELEN 50
 
 struct record ranking[11];
 int idx_p[11];
 
-void show_ranking();
-void read_file(FILE *);
-void write_file(FILE *);
+char file[] = "ranking.txt";
 
-void compare_ranking();
-void sort_ranking();
-
-void main(){
+void init_ranking(){
 	int i;
-	FILE *in_fp, *out_fp;
-	char file[] = "ranking.txt";
-//	struct record r;
+        FILE *in_fp;
 
-	initscr();
-	for(i = 0; i < 11; i++){
-	//	ranking[i].rank = -1;
-		idx_p[i] = i;
-	}
-
-	if( (in_fp = fopen(file, "r")) != NULL )
-		read_file(in_fp);
-	fclose(in_fp);
-
-	strcpy(ranking[idx_p[10]].name, "sss");
-	ranking[idx_p[10]].stage = 2;
-	ranking[idx_p[10]].score = 9;
-	compare_ranking();
-
-	if( (out_fp = fopen("test.txt", "w")) != NULL)
-	                 write_file(out_fp);
-			         fclose(out_fp);
-	getch();
-	endwin();
+        for(i = 0; i < 11; i++)
+                idx_p[i] = i;
+ 
+        if( (in_fp = fopen(file, "r")) != NULL )
+                read_file(in_fp);
+        fclose(in_fp);
 }
 
-void show_ranking(){
-	FILE *in_fp, *out_fp;
-	char file[] = "ranking.txt";
-		
-	if( (in_fp = fopen(file, "r")) != NULL )
-		read_file(in_fp);
-	fclose(in_fp);
 
-	if( (out_fp = fopen("test.txt", "w")) != NULL)
-		write_file(out_fp);
+void record_ranking(){
+	FILE *out_fp;
+	if( (out_fp = fopen(file, "w")) != NULL)
+        	write_file(out_fp);
 	fclose(out_fp);
-	
 }
 
 void read_file(FILE *fp){
@@ -139,13 +104,51 @@ void write_file(FILE *fp){
 	}
 }
 
+void show_ranking(int stage, int score){
+	int i = 0;
+	char name[20];
+	char ch;
+
+	initscr();
+	echo();
+	clear();
+
+	mvaddstr(20, 35, "input your name >> ");
+	while((ch=getchar())!='\r')
+		name[i] = ch;
+//	instr(name);
+//        fgets(name, sizeof(name), stdin);
+
+	ranking[idx_p[10]].rank = 1;
+	strcpy(ranking[idx_p[10]].name, name);
+	ranking[idx_p[10]].stage = stage;
+	ranking[idx_p[10]].score = score;
+		
+	compare_ranking();
+
+
+	mvaddstr(23, 35, "rank username stage score\n");
+	for( i=0; i<10; i++){
+		sprintf(temp, "%d ",ranking[idx_p[i]].rank);
+		addstr(temp);
+		strcpy(temp, ranking[idx_p[i]].name);
+		strcat(temp, " ");
+		addstr(temp);
+		sprintf(temp, "%d ", ranking[idx_p[i]].stage);
+		addstr(temp);
+		sprintf(temp, "%d\n", ranking[idx_p[i]].score);
+		addstr(temp);
+	}refresh();
+	getch();
+//	endwin();
+}
+
 void compare_ranking(){
 	int i, j, k;
 	int new_score, old_score;
 	int temp;
 
-	new_score = ranking[10].stage*100+ranking[10].score;
-	ranking[10].rank = 1;
+	new_score = ranking[idx_p[10]].stage * 100 + ranking[idx_p[10]].score;
 
 	for(i = 0; i < 10&&ranking[idx_p[i]].rank!=-1; i++){
 		old_score = ranking[idx_p[i]].stage*100+ranking[idx_p[i]].score;
@@ -158,11 +161,11 @@ void compare_ranking(){
 		}else if(new_score == old_score){
 				
 		}else{
-			ranking[10].rank++;
+			ranking[idx_p[10]].rank++;
 		}				
 	}
 
-	for(j = i+1; j < 10 && ranking[idx_p[j]].stage != 0; j++){
+	for(j = i+1; j < 10; j++){
 		temp = idx_p[j];
 		idx_p[j] = idx_p[10];
 		idx_p[10] = temp;

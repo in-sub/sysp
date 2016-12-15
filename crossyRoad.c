@@ -10,7 +10,9 @@
 
 struct ppball the_ball;
 
+int choose_stage();
 void set_up(struct obstacle[]);         	//전체 초기화
+
 void init_ball();				//공 초기화
 void init_obs(struct obstacle[]);                //장애물 초기화
 void add_boundary();				//경계선  그리기
@@ -29,13 +31,19 @@ pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
 int is_game_over = 0;
 int input;
 int score = 0;
-int dif;
+int stage;
 
 int main(){
 	int i;
+
 	struct obstacle the_obstacle[NUM_ROAD];
 	pthread_t threads[NUM_ROAD];
 
+	init_ranking();
+	init_screen();
+
+	
+	stage = choose_stage();
 	set_up(the_obstacle);
 
 	for(i =0 ; i < NUM_ROAD; i++)
@@ -55,20 +63,26 @@ int main(){
 		input = getchar();
         }
 
+
 	pthread_mutex_lock(&mx);
 	for(i =0; i < NUM_ROAD; i++)
 		pthread_cancel(threads[i]);
-	
-        endwin();
+//	clear();	
+//	endwin();
+getchar();
+        show_ranking(stage, score);
+	record_ranking();
+	endwin();
 	return 0;
 }
 
 void set_up(struct obstacle the_obstacle[]){        
+
 	init_ball();                                                   
 	init_obs(the_obstacle);
-        initscr();
-        noecho();
-        crmode();
+      initscr();
+       noecho();
+       crmode();
 	clear();
         signal(SIGINT, SIG_IGN);
         mvaddstr(5, 9, "SCORE: ");
@@ -80,6 +94,25 @@ void set_up(struct obstacle the_obstacle[]){
 	refresh();
 }
 
+int choose_stage(){
+	char ch;
+	int stage;
+
+	initscr();
+	clear();
+
+	mvaddstr(20,35,"Choose your stage(1~5) >> ");
+	ch = getch();
+	addch(ch);
+	stage = atoi(&ch);
+//	move(LINES-1, 0);
+	refresh();
+	getch();
+				
+	endwin();
+	return stage;
+}
+
 void init_obs(struct obstacle the_obstacle[]){
 	int i;
 
@@ -87,7 +120,7 @@ void init_obs(struct obstacle the_obstacle[]){
 	for(i = 0; i < NUM_ROAD; i++){
 		the_obstacle[i].str = OBS_SYMBOL;
 		the_obstacle[i].row = Y_INIT-2-(2*i);
-		the_obstacle[i].delay = 1+(rand()%15);
+		the_obstacle[i].delay = 1+(rand()%5)+5-stage;
 		the_obstacle[i].dir = ((rand()%2)?1:-1);
 		the_obstacle[i].idx = i;
 //		the_obstacle[i].col = rand()%EFT_EDGE+2;
@@ -188,7 +221,7 @@ void *move_obs(void *arg){
                 addch(' ');
                 move(LINES-1, COLS-1);
                 refresh();
-                pthread_mutex_unlock(&mx);
+               pthread_mutex_unlock(&mx);
                 info->col += info->dir;
                 if(info->col == LEFT_EDGE+1  && info->dir == -1)
                         info->dir = 1;
@@ -199,8 +232,8 @@ void *move_obs(void *arg){
 	if(score == NUM_ROAD+1)
 		addstr("you win");
 	else	addstr("game over");
-        refresh();
-        sleep(10);
+        refresh(); 
+	//sleep(3);
 }
 
 int is_ended(){

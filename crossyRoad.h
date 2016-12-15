@@ -29,3 +29,10 @@ struct obstacle{
 		int delay;
 		int dir;
 };
+
+struct record{
+		int rank;
+		char name[20];
+		int stage;
+		int score;
+};
