@@ -1,9 +1,9 @@
 #define BLANK           ' '
-#define BALL_SYMBOL     'O'
-//#define ROAD_SYMBOL     "================================================================"
+#define BALL_SYMBOL     '8'
+
 #define ROAD_SYMBOL 	"----------------------------------------------------------------"
 #define BNDR_SYMBOL     '+'                             //경계선 심볼
-#define OBS_SYMBOL	"OOOOOOO"
+#define OBS_SYMBOL	"OOOOOO"
 #define OBS_BLANK	"       "
 #define TOP_ROW         9
 #define BOT_ROW         41
@@ -30,9 +30,3 @@ struct obstacle{
 		int dir;
 };
 
-struct record{
-		int rank;
-		char name[20];
-		int stage;
-		int score;
-};

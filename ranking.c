@@ -51,14 +51,11 @@ void read_file(FILE *fp){
 				//printf("%d ", ranking[i].rank);
 				break;
 			case 1:
-				strcpy(ranking[i].name, token);
+				ranking[i].name = token;
+				//	strcpy(ranking[i].name, token);
 				//printf("%s ", ranking[i].name);
 				break;
 			case 2:
-				ranking[i].stage = atoi(token);
-				//printf("%d ", ranking[i].stage);
-				break;
-			case 3:
 				ranking[i].score = atoi(token);
 				//printf("%d\n",ranking[i].score);
 			}
@@ -79,7 +76,7 @@ void write_file(FILE *fp){
 
 	while(i<10){
 //	while(ranking[i].rank != -1){
-		for(j = 0; j < 4; j++){
+		for(j = 0; j < 3; j++){
 			switch(j){
 			case 0:
 				sprintf(temp, "%d ", ranking[idx_p[i]].rank);
@@ -89,10 +86,6 @@ void write_file(FILE *fp){
 				strcat(temp, " ");
 				break;
 			case 2:
-				sprintf(temp, "%d ", ranking[idx_p[i]].stage);
-	//			printf("%s", temp);
-				break;
-			case 3:
 				sprintf(temp, "%d\n", ranking[idx_p[i]].score);
 			}
 	//			fseek(fp, 0L, SEEK_CUR);
@@ -107,21 +100,28 @@ void write_file(FILE *fp){
 void show_ranking(int stage, int score){
 	int i = 0;
 	char name[20];
+	char temp[20];
 	char ch;
 
 	initscr();
-	echo();
 	clear();
 
+//	while(getchar()!='\n');
 	mvaddstr(20, 35, "input your name >> ");
-	while((ch=getchar())!='\r')
-		name[i] = ch;
+	
+//	ch = getch();
+
+//	while(ch!='\n'&&ch!=EOF){
+//		name[i++] = ch;
+//		addch(ch);
+//		ch=getch();
+//	}name[i] = '\r';
+//strcpy(name, "null");
 //	instr(name);
 //        fgets(name, sizeof(name), stdin);
 
 	ranking[idx_p[10]].rank = 1;
-	strcpy(ranking[idx_p[10]].name, name);
-	ranking[idx_p[10]].stage = stage;
+	ranking[idx_p[10]].name = 's';
 	ranking[idx_p[10]].score = score;
 		
 	compare_ranking();
@@ -134,13 +134,12 @@ void show_ranking(int stage, int score){
 		strcpy(temp, ranking[idx_p[i]].name);
 		strcat(temp, " ");
 		addstr(temp);
-		sprintf(temp, "%d ", ranking[idx_p[i]].stage);
-		addstr(temp);
 		sprintf(temp, "%d\n", ranking[idx_p[i]].score);
 		addstr(temp);
 	}refresh();
 	getch();
-//	endwin();
+	
+	endwin();
 }
 
 void compare_ranking(){
@@ -148,10 +147,10 @@ void compare_ranking(){
 	int new_score, old_score;
 	int temp;
 
-	new_score = ranking[idx_p[10]].stage * 100 + ranking[idx_p[10]].score;
+	new_score = ranking[idx_p[10]].score;
 
-	for(i = 0; i < 10&&ranking[idx_p[i]].rank!=-1; i++){
-		old_score = ranking[idx_p[i]].stage*100+ranking[idx_p[i]].score;
+	for(i = 0; i < 10; i++){
+		old_score = ranking[idx_p[i]].score;
 
 		if(new_score > old_score){
 			temp = idx_p[i];
@@ -165,7 +164,7 @@ void compare_ranking(){
 		}				
 	}
 
-	for(j = i+1; j < 10; j++){
+	for(j = i+1; j < 11; j++){
 		temp = idx_p[j];
 		idx_p[j] = idx_p[10];
 		idx_p[10] = temp;
