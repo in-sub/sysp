@@ -13,6 +13,9 @@
 #define Y_INIT          20
 #define MAXMSG		10
 #define TIME		20000
+#define MAX_SCORE	5
+#define NUM_MSG		6		
+#define LENGTH		6
 
 struct ppball{
                 int y_pos, x_pos;

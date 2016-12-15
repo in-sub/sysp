@@ -9,63 +9,62 @@
 #include        "crossyRoad.h"
 
 struct ppball the_ball;
-struct obstacle the_obstacle[MAXMSG];
 
-void set_up();          //전체 초기화
-void init_ball();	//공 초기화
-void add_boundary();    //경계선  그리기
-void add_road();        //도로 그리기
-void ball_move();       //공 움직임
-void within_boundary(struct ppball*);   //공이 경계선을 넘지 않도록
+void set_up(struct obstacle[]);         	//전체 초기화
+void init_ball();				//공 초기화
+int init_obs(struct obstacle[]);                //장애물 초기화
+void add_boundary();				//경계선  그리기
+void add_road();				//도로 그리기
 
-int set_up_obs(struct obstacle the_obstacle[]);		//장애물 초기화
-void *animate();					//장애물 움직임
-//void *ran_over(void *);
+void ball_move();				//공 움직임
+void within_boundary(struct ppball*);		//공이 경계선을 넘지 않도록
+void set_score(int, int);			//점수 계산
+
+void *move_obs(void *);				//장애물 움직임
+
+int is_ended();
+
 pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
-int num_msg = 6;					//장애물 문자 개수
-struct obstacle the_obstacle[MAXMSG];
-
+int num_msg = 6;				//장애물 문자 개수
+int is_game_over = 0;
+int input;
+int score = 0;
 
 int main(){
-        int c;
 	int i;
-	int set_up_obs(struct obstacle the_obstacle[]);
-	
-	pthread_t threads[MAXMSG], rt;
+	struct obstacle the_obstacle[MAXMSG];
+	pthread_t threads[MAXMSG];
 
-set_up();
-	
-	set_up_obs(the_obstacle);
-
-       
+	set_up(the_obstacle);
 
 	for(i = 1 ; i < num_msg-1; i++)
-		if(pthread_create(&threads[i], NULL, animate, &the_obstacle[i])){		
+		if(pthread_create(&threads[i], NULL, move_obs, &the_obstacle[i])){		
 			fprintf(stderr,"Error with creating thread");
 			endwin();
 			exit(0);
 		}
-//	pthread_create(&rt, NULL, ran_over, NULL);
 
-        while((c=getchar()) !='Q'){
-                if(c=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
-                else if(c=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
-                else if(c=='a') {the_ball.x_dir = -2;   the_ball.y_dir = 0;}
-                else if(c=='d') {the_ball.x_dir = 2;    the_ball.y_dir = 0;}
+	input = getchar();
+        while(!is_ended()){
+                if(input=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
+                else if(input=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
+                else if(input=='a') {the_ball.x_dir = -2;   the_ball.y_dir = 0;}
+                else if(input=='d') {the_ball.x_dir = 2;    the_ball.y_dir = 0;}
                 ball_move();
+		input = getchar();
         }
+
 	pthread_mutex_lock(&mx);
 	for(i = 1; i <num_msg-1; i++)
 		pthread_cancel(threads[i]);
-//	pthread_cancel(rt);
 	
         endwin();
 	return 0;
 }
 
-void set_up(){
-        
-	init_ball();                                                    //공 초기화
+void set_up(struct obstacle the_obstacle[]){        
+	init_ball();                                                   
+	init_obs(the_obstacle);
         initscr();
         noecho();
         crmode();
@@ -79,7 +78,7 @@ void set_up(){
 	refresh();
 }
 
-int set_up_obs(struct obstacle the_obstacle[]){
+int init_obs(struct obstacle the_obstacle[]){
 	
 	int num_msg = 6;
 	int i;
@@ -103,54 +102,6 @@ void init_ball(){
         the_ball.x_dir = 0;
         the_ball.symbol = BALL_SYMBOL;
 }
-void *animate(void *arg){
-	struct obstacle *info = arg;
-	int len = strlen(info->str)+2;
-//	int col = LEFT_EDGE+2;
-	char num[3];
-
-	while(1){
-	if(info->idx  == (Y_INIT-the_ball.y_pos)/2 && info->col < the_ball.x_pos &&  the_ball.x_pos < (info->col+num_msg))
-                        break;
-
-		usleep(info->delay*TIME);
-
-		pthread_mutex_lock(&mx);
-		move(info->row, info->col);
-		addch(' ');
-		addstr(info->str);
-		addch(' ');
-		move(LINES-1, COLS-1);
-		refresh();
-		pthread_mutex_unlock(&mx);
-		info->col += info->dir;
-		if(info->col == LEFT_EDGE+1  && info->dir == -1)
-			info->dir = 1;
-	else if(info->col+len>=RIGHT_EDGE  && info->dir == 1 )
-			info->dir = -1;
-	}
-	move(0, 0);
-	addstr("game over");
-	refresh();
-        sleep(1000);
-
-
-
-}
-
-/*void *ran_over(void *m){
-	int i;
-//	struct obstacle *po = m;
-	
-
-	do{
-		i = (Y_INIT-2-the_ball.y_pos)/2;
-	}while( the_obstacle[i].row > the_ball.x_pos ||  the_ball.x_pos > the_obstacle[i].row+num_msg);
-	move(0, 0);
-	addstr("game over");
-	refresh();
-	sleep(1000);
-}*/
 
 void add_boundary(){
         int i;
@@ -174,27 +125,13 @@ void add_road(){
 void ball_move(){
         
 	int y_cur, x_cur;
-        static int back_cnt = 0;
-        static int score = 0;
-        char str_score[3];
 
         y_cur = the_ball.y_pos;
         x_cur = the_ball.x_pos;
 
         within_boundary(&the_ball);
 
-        if(y_cur < the_ball.y_pos)
-                back_cnt++;
-        else if(y_cur > the_ball.y_pos){
-                if(back_cnt > 0)
-                        back_cnt--;
-                else if(back_cnt == 0){
-                        score++;
-                        sprintf(str_score, "%d", score);
-                        mvaddstr(5, 16, "   ");
-                        mvaddstr(5, 16, str_score);
-                }
-        }
+	set_score(y_cur, x_cur);   
 
         mvaddch(y_cur, x_cur, BLANK);
         mvaddch(the_ball.y_pos, the_ball.x_pos, the_ball.symbol);
@@ -210,6 +147,64 @@ void within_boundary(struct ppball *bp){
         if(y>TOP_ROW && y<BOT_ROW && x>LEFT_EDGE+1 && x<RIGHT_EDGE-1){
                 bp->y_pos = y;
 		bp->x_pos = x;
-	}
+	}	
+}
+
+void set_score(int y_cur, int x_cur){
+	static int back_cnt = 0;
+        char str_score[3];
 	
+	 if(y_cur < the_ball.y_pos)
+                back_cnt++;
+        else if(y_cur > the_ball.y_pos){
+                if(back_cnt > 0)
+                        back_cnt--;
+                else if(back_cnt == 0){
+                        score++;
+                        sprintf(str_score, "%d", score);
+                        mvaddstr(5, 16, "   ");
+                        mvaddstr(5, 16, str_score);
+                }
+        }
+}
+
+void *move_obs(void *arg){
+        struct obstacle *info = arg;
+        int len = strlen(info->str)+2;
+        char num[3];
+
+        while(1){
+                if((info->idx  == (Y_INIT-the_ball.y_pos)/2 && info->col < the_ball.x_pos &&  the_ball.x_pos < (info->col+LENGTH))|| is_ended()){
+			is_game_over = 1;
+                        break;
+		}
+
+                usleep(info->delay*TIME);
+
+                pthread_mutex_lock(&mx);
+                move(info->row, info->col);
+                addch(' ');
+                addstr(info->str);
+                addch(' ');
+                move(LINES-1, COLS-1);
+                refresh();
+                pthread_mutex_unlock(&mx);
+                info->col += info->dir;
+                if(info->col == LEFT_EDGE+1  && info->dir == -1)
+                        info->dir = 1;
+                else if(info->col+len>=RIGHT_EDGE  && info->dir == 1 )
+                        info->dir = -1;
+        }
+        move(0, 0);
+	if(score == MAX_SCORE)
+		addstr("you win");
+	else	addstr("game over");
+        refresh();
+        sleep(10);
+}
+
+int is_ended(){
+	if( input == 'Q' || score == MAX_SCORE || is_game_over == 1)
+		return 1;
+	return 0;
 }
