@@ -12,7 +12,7 @@ struct ppball the_ball;
 
 void set_up(struct obstacle[]);         	//전체 초기화
 void init_ball();				//공 초기화
-int init_obs(struct obstacle[]);                //장애물 초기화
+void init_obs(struct obstacle[]);                //장애물 초기화
 void add_boundary();				//경계선  그리기
 void add_road();				//도로 그리기
 
@@ -25,19 +25,20 @@ void *move_obs(void *);				//장애물 움직임
 int is_ended();
 
 pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
-int num_msg = 6;				//장애물 문자 개수
+
 int is_game_over = 0;
 int input;
 int score = 0;
+int dif;
 
 int main(){
 	int i;
-	struct obstacle the_obstacle[MAXMSG];
-	pthread_t threads[MAXMSG];
+	struct obstacle the_obstacle[NUM_ROAD];
+	pthread_t threads[NUM_ROAD];
 
 	set_up(the_obstacle);
 
-	for(i = 1 ; i < num_msg-1; i++)
+	for(i =0 ; i < NUM_ROAD; i++)
 		if(pthread_create(&threads[i], NULL, move_obs, &the_obstacle[i])){		
 			fprintf(stderr,"Error with creating thread");
 			endwin();
@@ -55,7 +56,7 @@ int main(){
         }
 
 	pthread_mutex_lock(&mx);
-	for(i = 1; i <num_msg-1; i++)
+	for(i =0; i < NUM_ROAD; i++)
 		pthread_cancel(threads[i]);
 	
         endwin();
@@ -72,27 +73,26 @@ void set_up(struct obstacle the_obstacle[]){
         signal(SIGINT, SIG_IGN);
         mvaddstr(5, 9, "SCORE: ");
         mvaddstr(5, 16, "0");
+	mvaddstr(TOP_ROW+1, X_INIT-2, "G O A L");
         add_boundary();                                                 //경계선 그리기
         add_road();                                                     //도로 그리기
         mvaddch(the_ball.y_pos, the_ball.x_pos, the_ball.symbol);	//공 그리기
 	refresh();
 }
 
-int init_obs(struct obstacle the_obstacle[]){
-	
-	int num_msg = 6;
+void init_obs(struct obstacle the_obstacle[]){
 	int i;
 
 	srand(getpid());
-	for(i = 1; i < num_msg-1; i++){
+	for(i = 0; i < NUM_ROAD; i++){
 		the_obstacle[i].str = OBS_SYMBOL;
-		the_obstacle[i].row = X_INIT-(2*i+2);
+		the_obstacle[i].row = Y_INIT-2-(2*i);
 		the_obstacle[i].delay = 1+(rand()%15);
 		the_obstacle[i].dir = ((rand()%2)?1:-1);
 		the_obstacle[i].idx = i;
-		the_obstacle[i].col = LEFT_EDGE+2;
+//		the_obstacle[i].col = rand()%EFT_EDGE+2;
+		the_obstacle[i].col = (rand()%(RIGHT_EDGE-LEFT_EDGE-2*LENGTH))+LEFT_EDGE+2;
 	}
-	return num_msg;
 }
 
 void init_ball(){
@@ -119,7 +119,7 @@ void add_boundary(){
 void add_road(){
         int i;
 
-        for(i=11; i<20; i+=2)   mvaddstr(i, 10, ROAD_SYMBOL);
+        for(i=11; i<BOT_ROW-1; i+=2)   mvaddstr(i, 21, ROAD_SYMBOL);
 }
 
 void ball_move(){
@@ -174,7 +174,7 @@ void *move_obs(void *arg){
         char num[3];
 
         while(1){
-                if((info->idx  == (Y_INIT-the_ball.y_pos)/2 && info->col < the_ball.x_pos &&  the_ball.x_pos < (info->col+LENGTH))|| is_ended()){
+                if((info->idx  == (Y_INIT-the_ball.y_pos-2)/2 && info->col < the_ball.x_pos &&  the_ball.x_pos < (info->col+LENGTH))|| is_ended()){
 			is_game_over = 1;
                         break;
 		}
@@ -196,7 +196,7 @@ void *move_obs(void *arg){
                         info->dir = -1;
         }
         move(0, 0);
-	if(score == MAX_SCORE)
+	if(score == NUM_ROAD+1)
 		addstr("you win");
 	else	addstr("game over");
         refresh();
@@ -204,7 +204,7 @@ void *move_obs(void *arg){
 }
 
 int is_ended(){
-	if( input == 'Q' || score == MAX_SCORE || is_game_over == 1)
+	if( input == 'Q' || score == NUM_ROAD+1 || is_game_over == 1)
 		return 1;
 	return 0;
 }
