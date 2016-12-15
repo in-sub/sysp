@@ -10,7 +10,9 @@
 
 struct ppball the_ball;
 
+int crossy_road();
 void init_screen();
+int level_choose();
 void set_up(struct obstacle[]);         	//전체 초기화
 void init_ball();				//공 초기화
 void init_obs(struct obstacle[]);                //장애물 초기화
@@ -26,19 +28,28 @@ void *move_obs(void *);				//장애물 움직임
 int is_ended();
 
 pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
+//pthread_t threads[NUM_ROAD];
 
 int is_game_over = 0;
 int input;
 int score = 0;
-int dif;
+int dif = 0;
+int cnt = 0;
 
 int main(){
- 	
+
 	init_screen();
+	crossy_road();
+	return 0;
+}
+
+int crossy_road(){
+ 	
 	int i;
+	dif = level_choose();
+	
 	struct obstacle the_obstacle[NUM_ROAD];
 	pthread_t threads[NUM_ROAD];
-
 	set_up(the_obstacle);
 
 	for(i =0 ; i < NUM_ROAD; i++)
@@ -47,7 +58,6 @@ int main(){
 			endwin();
 			exit(0);
 		}
-
 	input = getchar();
         while(!is_ended()){
                 if(input=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
@@ -60,9 +70,10 @@ int main(){
 
 	pthread_mutex_lock(&mx);
 	for(i =0; i < NUM_ROAD; i++)
-		pthread_cancel(threads[i]);
-	
-        endwin();
+		pthread_cancel(threads[i]);	
+        
+	endwin();
+		
 	return 0;
 }
 
@@ -235,6 +246,26 @@ void init_screen(){
 	endwin();
 }
 
+int level_choose(){
+	
+	char ch;
+	int level;
+	initscr();
+	clear();
+
+	mvaddstr(20,35,"Choose your level(1~5) : ");
+	ch = getch();
+	addch(ch);
+	level = atoi(&ch);
+	move(LINES-1, 0);
+	refresh();
+	getch();
+	
+	endwin();
+	return level;
+	
+}
+
 void set_up(struct obstacle the_obstacle[]){        
 	init_ball();                                                   
 	init_obs(the_obstacle);
@@ -259,7 +290,7 @@ void init_obs(struct obstacle the_obstacle[]){
 	for(i = 0; i < NUM_ROAD; i++){
 		the_obstacle[i].str = OBS_SYMBOL;
 		the_obstacle[i].row = Y_INIT-2-(2*i);
-		the_obstacle[i].delay = 1+(rand()%15);
+		the_obstacle[i].delay = 1+(rand()%5)+(5-dif);
 		the_obstacle[i].dir = ((rand()%2)?1:-1);
 		the_obstacle[i].idx = i;
 //		the_obstacle[i].col = rand()%EFT_EDGE+2;
@@ -370,13 +401,18 @@ void *move_obs(void *arg){
         move(0, 0);
 	if(score == NUM_ROAD+1)
 		addstr("you win");
+
 	else	addstr("game over");
+	
         refresh();
         sleep(10);
 }
 
 int is_ended(){
-	if( input == 'Q' || score == NUM_ROAD+1 || is_game_over == 1)
-		return 1;
+	if( input == 'Q'||score == NUM_ROAD+1 || is_game_over == 1)
+	
+			return 1;
+	
+
 	return 0;
 }
