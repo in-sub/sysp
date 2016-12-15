@@ -1,4 +1,4 @@
-/*croosRoad.c*/
+/*crossRoad.c*/
 
 #include        <stdio.h>
 #include        <curses.h>
@@ -19,13 +19,16 @@ void add_boundary();    //경계선  그리기
 void add_road();        //도로 그리기
 void ball_move();       //공 움직임
 void within_boundary(struct ppball*);   //공이 경계선을 넘지 않도록
+void *accident();
 
 int set_up_obs(struct obstacle the_obstacle[]);
 void *animate();
 pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
-int num_msg = 6;
+int num_msg = 15;
 
 int main(){
+	
+	
         int c;
 	//int num_msg;
 	int i;
@@ -33,6 +36,7 @@ int main(){
 	
 	pthread_t threads[MAXMSG];
 	struct obstacle the_obstacle[MAXMSG];
+	pthread_t threads2[MAXMSG];
 	
 	set_up_obs(the_obstacle);
 
@@ -44,20 +48,26 @@ int main(){
 			endwin();
 			exit(0);
 		}
-
-        while((c=getchar()) !='Q'){
+	
+	/*for(i = 1 ; i < num_msg-1; i++)
+		if(pthread_create(&threads2[i], NULL, accident, &the_obstacle[i])){		
+			fprintf(stderr,"Error with creating thread");
+			endwin();
+			exit(0);
+        }*/
+	
+	while((c=getchar()) !='Q'){
                 if(c=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
                 else if(c=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
                 else if(c=='a') {the_ball.x_dir = -2;   the_ball.y_dir = 0;}
                 else if(c=='d') {the_ball.x_dir = 2;    the_ball.y_dir = 0;}
-                ball_move();
-        }
+        	
+		ball_move();
+	}
 	pthread_mutex_lock(&mx);
 	for(i = 1; i <num_msg-1; i++)
 		pthread_cancel(threads[i]);
-	
-	
-        endwin();
+	 endwin();
 	return 0;
 }
 
@@ -79,15 +89,17 @@ void set_up(){
 
 int set_up_obs(struct obstacle the_obstacle[]){
 	
-	int num_msg = 6;
+	int num_msg = 15;
 	int i;
 
 	srand(getpid());
 	for(i = 1; i < num_msg-1; i++){
 		the_obstacle[i].str = OBS_SYMBOL;
-		the_obstacle[i].row = X_INIT-(2*i+2);
+		the_obstacle[i].row = X_INIT-(2*i+14);
 		the_obstacle[i].delay = 1+(rand()%15);
 		the_obstacle[i].dir = ((rand()%2)?1:-1);
+		the_obstacle[i].idx = i;
+		the_obstacle[i].col = LEFT_EDGE+2;
 	}
 	return num_msg;
 }
@@ -104,14 +116,19 @@ void *animate(void *arg){
 	
 	struct obstacle *info = arg;
 	int len = strlen(info->str)+2;
-	int col = LEFT_EDGE+2;
+	char num[3];
+	
+	//int col = LEFT_EDGE+2;
 	//int col = rand()%(COLS-len-3);
+	
 	while(1)
 	{
+	if(info->idx  == (Y_INIT-the_ball.y_pos)/2 && info->col < the_ball.x_pos &&  the_ball.x_pos < (info->col+num_msg))
+                        break;
 		usleep(info->delay*TIME);
 
 		pthread_mutex_lock(&mx);
-		move(info->row, col);
+		move(info->row,info-> col);
 		addch(' ');
 		addstr(info->str);
 		addch(' ');
@@ -119,16 +136,19 @@ void *animate(void *arg){
 		refresh();
 		pthread_mutex_unlock(&mx);
 		
-		col += info->dir;
-		if(col == LEFT_EDGE+1  && info->dir == -1)
+		info->col += info->dir;
+		if(info->col == LEFT_EDGE+1  && info->dir == -1)
 			info->dir = 1;
-	else if(col+len>=RIGHT_EDGE  && info->dir == 1 )
+		else if(info->col+len>=RIGHT_EDGE  && info->dir == 1 )
 			info->dir = -1;
-	
-	
+		
 	}
-
+	move(0,0);
+	addstr("GAME OVER");
+	refresh();
+	sleep(1000);
 }
+
 
 void add_boundary(){
         int i;
@@ -146,12 +166,13 @@ void add_boundary(){
 void add_road(){
         int i;
 
-        for(i=11; i<20; i+=2)   mvaddstr(i, 10, ROAD_SYMBOL);
+        for(i=11; i<40; i+=2)   mvaddstr(i, 21, ROAD_SYMBOL);
 }
 
 void ball_move(){
         
 	int y_cur, x_cur;
+	int i;
         static int back_cnt = 0;
         static int score = 0;
         char str_score[3];
@@ -185,7 +206,7 @@ void within_boundary(struct ppball *bp){
         y = bp->y_pos + bp->y_dir;
         x = bp->x_pos + bp->x_dir;
 
-        if(y>TOP_ROW && y<BOT_ROW && x>LEFT_EDGE && x<RIGHT_EDGE){
+        if(y>TOP_ROW && y<BOT_ROW && x>LEFT_EDGE && x<RIGHT_EDGE-1){
                 bp->y_pos = y;
 		bp->x_pos = x;
 	}
