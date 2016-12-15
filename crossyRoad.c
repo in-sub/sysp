@@ -1,183 +1,189 @@
-/*crossyRoad.c*/
-#include	<stdio.h>
-#include	<curses.h>
-#include	<signal.h>
-#include	<string.h>
-#include	<termios.h>
-#include	<stdlib.h>
-#include	<pthread.h>
+#include        <stdio.h>
+#include        <curses.h>
+#include        <signal.h>
+#include        <string.h>
+#include        <termios.h>
+#include        <stdlib.h>
+#include 	<pthread.h>
 #include	<unistd.h>
-#include	<time.h>
-#include	<sys/time.h>
-#include	"crossyRoad.h"
+#include        "crossyRoad.h"
 
-/*
-github testing
-*/
+struct ppball the_ball;
+struct obstacle the_obstacle[MAXMSG];
 
-struct ppball 	the_ball;
-struct car_t	the_cars[CAR_NUM];
-int		game_over = 0;
-int		score = 0;
-int 		c = 0;
-
-void set_up();		//전체 초기화
+void set_up();          //전체 초기화
 void init_ball();	//공 초기화
-void init_car();	//차 초기화
-void add_boundary();	//경계선  그리기
-void add_road();	//도로 그리기
-void ball_move(void);	//공 움직임
-void ball_in_boundary(struct ppball*);	//공이 경계선을 넘지 않도록
-void set_score(int);
-void *car_thread(void *);
-void boucne_car(struct car_t*);
-void *input_char(void *);
-int set_ticker(int);
+void add_boundary();    //경계선  그리기
+void add_road();        //도로 그리기
+void ball_move();       //공 움직임
+void within_boundary(struct ppball*);   //공이 경계선을 넘지 않도록
+
+int set_up_obs(struct obstacle the_obstacle[]);		//장애물 초기화
+void *animate();					//장애물 움직임
+//void *ran_over(void *);
+pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
+int num_msg = 6;					//장애물 문자 개수
+struct obstacle the_obstacle[MAXMSG];
+
 
 int main(){
-	int c, i;
-	pthread_t ct, rt, it;
-
-	void *car_thread(void *);
-
-	set_up();
-
-	pthread_create(&ct, NULL, car_thread, (void *)NULL);
-	pthread_create(&it, NULL, input_char, (void *)NULL);
-
-	do{
-		i = (Y_INIT-2-the_ball.y_pos)/2;
-	}while( the_cars[i].x_pos != the_ball.x_pos && score < MAX_SCORE && c != 'Q') ;
+        int c;
+	int i;
+	int set_up_obs(struct obstacle the_obstacle[]);
 	
-	if(score == MAX_SCORE)
-		printf("you win!!");
-	else if(the_car[i].x_pos == the_ball.x_pos){
-		game_over = 1;
-		printf("game over\n");
-	}
-	sleep(10);
+	pthread_t threads[MAXMSG], rt;
 
-	pthread_join(ct, NULL);
-	pthread_join(it, NULL);
+set_up();
+	
+	set_up_obs(the_obstacle);
 
-	endwin();
+       
+
+	for(i = 1 ; i < num_msg-1; i++)
+		if(pthread_create(&threads[i], NULL, animate, &the_obstacle[i])){		
+			fprintf(stderr,"Error with creating thread");
+			endwin();
+			exit(0);
+		}
+//	pthread_create(&rt, NULL, ran_over, NULL);
+
+        while((c=getchar()) !='Q'){
+                if(c=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
+                else if(c=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
+                else if(c=='a') {the_ball.x_dir = -2;   the_ball.y_dir = 0;}
+                else if(c=='d') {the_ball.x_dir = 2;    the_ball.y_dir = 0;}
+                ball_move();
+        }
+	pthread_mutex_lock(&mx);
+	for(i = 1; i <num_msg-1; i++)
+		pthread_cancel(threads[i]);
+//	pthread_cancel(rt);
+	
+        endwin();
+	return 0;
 }
 
 void set_up(){
-	init_ball();							//공 초기화
-	init_car();
-
-	initscr();
-	noecho();
-	crmode();
-
-	signal(SIGINT, SIG_IGN);
-	mvaddstr(5, 9, "SCORE: ");
-	mvaddstr(5, 16, "0");
-	add_boundary();							//경계선 그리기
-	add_road();							//도로 그리기
-	mvaddch(the_ball.y_pos, the_ball.x_pos, the_ball.symbol);	//공 그리기
+        
+	init_ball();                                                    //공 초기화
+        initscr();
+        noecho();
+        crmode();
+	clear();
+        signal(SIGINT, SIG_IGN);
+        mvaddstr(5, 9, "SCORE: ");
+        mvaddstr(5, 16, "0");
+        add_boundary();                                                 //경계선 그리기
+        add_road();                                                     //도로 그리기
+        mvaddch(the_ball.y_pos, the_ball.x_pos, the_ball.symbol);	//공 그리기
 	refresh();
+}
 
+int set_up_obs(struct obstacle the_obstacle[]){
+	
+	int num_msg = 6;
+	int i;
+
+	srand(getpid());
+	for(i = 1; i < num_msg-1; i++){
+		the_obstacle[i].str = OBS_SYMBOL;
+		the_obstacle[i].row = X_INIT-(2*i+2);
+		the_obstacle[i].delay = 1+(rand()%15);
+		the_obstacle[i].dir = ((rand()%2)?1:-1);
+		the_obstacle[i].idx = i;
+		the_obstacle[i].col = LEFT_EDGE+2;
+	}
+	return num_msg;
 }
 
 void init_ball(){
-	the_ball.y_pos = Y_INIT;
+        the_ball.y_pos = Y_INIT;
         the_ball.x_pos = X_INIT;
         the_ball.y_dir = 0;
         the_ball.x_dir = 0;
         the_ball.symbol = BALL_SYMBOL;
 }
+void *animate(void *arg){
+	struct obstacle *info = arg;
+	int len = strlen(info->str)+2;
+//	int col = LEFT_EDGE+2;
+	char num[3];
 
-void init_car(){	
+	while(1){
+	if(info->idx  == (Y_INIT-the_ball.y_pos)/2 && info->col < the_ball.x_pos &&  the_ball.x_pos < (info->col+num_msg))
+                        break;
 
-	srand((unsigned)time(NULL));
+		usleep(info->delay*TIME);
 
-	for(int i = 0; i < CAR_NUM; i++){
-		the_cars[i].idx = i;
-		the_cars[i].y_pos = Y_INIT-2*(i+1);
-		the_cars[i].speed = rand()%5+1;
-
-		if(the_cars[i].speed % 2 == 1){
-			 the_cars[i].dir = 1;
-			 the_cars[i].x_pos = LEFT_EDGE+1;
-		}else{
-			the_cars[i].dir = -1;
-			the_cars[i].x_pos = RIGHT_EDGE-1;
-		}
-		the_cars[i].symbol = CAR_SYMBOL;
-		mvaddch(the_cars[i].y_pos, the_cars[i].x_pos, the_cars[i].symbol);
+		pthread_mutex_lock(&mx);
+		move(info->row, info->col);
+		addch(' ');
+		addstr(info->str);
+		addch(' ');
+		move(LINES-1, COLS-1);
 		refresh();
+		pthread_mutex_unlock(&mx);
+		info->col += info->dir;
+		if(info->col == LEFT_EDGE+1  && info->dir == -1)
+			info->dir = 1;
+	else if(info->col+len>=RIGHT_EDGE  && info->dir == 1 )
+			info->dir = -1;
 	}
+	move(0, 0);
+	addstr("game over");
+	refresh();
+        sleep(1000);
+
+
+
 }
 
-void add_boundary(){
+/*void *ran_over(void *m){
 	int i;
+//	struct obstacle *po = m;
+	
 
-	//상
-	for(i=LEFT_EDGE+1; i<RIGHT_EDGE; i+=2)	mvaddch(TOP_ROW, i, BNDR_SYMBOL);
-	//하
-	for(i=LEFT_EDGE+1; i<RIGHT_EDGE; i+=2)	mvaddch(BOT_ROW, i, BNDR_SYMBOL);
-	//좌
-	for(i=TOP_ROW+1; i<BOT_ROW; i++)	mvaddch(i, LEFT_EDGE, BNDR_SYMBOL);
-	//우
-	for(i=TOP_ROW+1; i<BOT_ROW; i++)	mvaddch(i, RIGHT_EDGE, BNDR_SYMBOL);
+	do{
+		i = (Y_INIT-2-the_ball.y_pos)/2;
+	}while( the_obstacle[i].row > the_ball.x_pos ||  the_ball.x_pos > the_obstacle[i].row+num_msg);
+	move(0, 0);
+	addstr("game over");
+	refresh();
+	sleep(1000);
+}*/
+
+void add_boundary(){
+        int i;
+
+        //상
+        for(i=LEFT_EDGE+1; i<RIGHT_EDGE; i+=2)  mvaddch(TOP_ROW, i, BNDR_SYMBOL);
+        //하
+        for(i=LEFT_EDGE+1; i<RIGHT_EDGE; i+=2)  mvaddch(BOT_ROW, i, BNDR_SYMBOL);
+        //좌
+        for(i=TOP_ROW+1; i<BOT_ROW; i++)        mvaddch(i, LEFT_EDGE, BNDR_SYMBOL);
+        //우
+        for(i=TOP_ROW+1; i<BOT_ROW; i++)        mvaddch(i, RIGHT_EDGE, BNDR_SYMBOL);
 }
 
 void add_road(){
-	int i;
+        int i;
 
-	for(i=11; i<20; i+=2)	mvaddstr(i, 10, ROAD_SYMBOL);
+        for(i=11; i<20; i+=2)   mvaddstr(i, 10, ROAD_SYMBOL);
 }
 
 void ball_move(){
+        
 	int y_cur, x_cur;
-/*	static int back_cnt = 0;
-	static int score = 0;
-	char str_score[3];*/
-
-	y_cur = the_ball.y_pos;
-	x_cur = the_ball.x_pos;
-
-	ball_in_boundary(&the_ball);
-/*
-	if(y_cur < the_ball.y_pos)
-		back_cnt++;
-	else if(y_cur > the_ball.y_pos){
-		if(back_cnt > 0)
-			back_cnt--;
-		else if(back_cnt == 0){
-			score++;
-			sprintf(str_score, "%d", score);
-			mvaddstr(5, 16, "   ");
-			mvaddstr(5, 16, str_score);
-		}
-	}*/
-
-	set_score(y_cur);	
-
-	mvaddch(y_cur, x_cur, BLANK);
-	mvaddch(the_ball.y_pos, the_ball.x_pos, the_ball.symbol);
-	move(0, 0);
-	refresh();
-}
-
-void ball_in_boundary(struct ppball *bp){
-	int y, x;
-	y = bp->y_pos + bp->y_dir;
-	x = bp->x_pos + bp->x_dir;
-
-	if(y>TOP_ROW && y<BOT_ROW && x>LEFT_EDGE && x<RIGHT_EDGE){
-		bp->y_pos = y;
-		bp->x_pos = x;
-	}
-}
-
-void set_score(int y_cur){
-	static int back_cnt = 0;
+        static int back_cnt = 0;
+        static int score = 0;
         char str_score[3];
 
-	if(y_cur < the_ball.y_pos)
+        y_cur = the_ball.y_pos;
+        x_cur = the_ball.x_pos;
+
+        within_boundary(&the_ball);
+
+        if(y_cur < the_ball.y_pos)
                 back_cnt++;
         else if(y_cur > the_ball.y_pos){
                 if(back_cnt > 0)
@@ -190,76 +196,20 @@ void set_score(int y_cur){
                 }
         }
 
+        mvaddch(y_cur, x_cur, BLANK);
+        mvaddch(the_ball.y_pos, the_ball.x_pos, the_ball.symbol);
+        move(LINES-1, COLS-1);
+        refresh();
 }
 
-void *car_thread(void *m){
+void within_boundary(struct ppball *bp){
+        int y, x;
+        y = bp->y_pos + bp->y_dir;
+        x = bp->x_pos + bp->x_dir;
 
-	int *i = (int*) m;
-	
-	void car_move(int);
-	signal(SIGALRM, car_move);
-	set_ticker( 1000 );
-
-	while(c != 'Q' && game_over != 1 && score < MAX_SCORE);
-		return;
-}
-
-void car_move(int signum){
-	int x_cur, y_cur;
-	int i;
-
-	for(i = 0; i < CAR_NUM; i++){
-		struct car_t *cp = &the_cars[i];
-
-		y_cur = cp->y_pos;
-		x_cur = cp->x_pos;
-	
-		bounce_car(cp);
-
-		mvaddch(y_cur, x_cur, BLANK);
-		mvaddch(cp->y_pos, cp->x_pos, cp->symbol);
-		move(0, 0);
-	        }
-}
-	refresh();
-}
-
-
-void bounce_car(struct car_t *cp) {
-        int x;
-        x = cp->x_pos + cp->dir * cp->speed;
-
-        if( x < LEFT_EDGE && cp->dir == -1)
-		cp->dir = 1; 
-	else if( x > RIGHT_EDGE && cp->dir == 1)
-                cp->dir = -1;
-	else
-		cp->x_pos = x;
-}
-
-void *input_char(void *m){
-
-	  while((c=getchar()) !='Q' && game_over != 1 && score < MAX_SCORE){
-	  	if(c=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
-		else if(c=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
-		else if(c=='a') {the_ball.x_dir = -1;   the_ball.y_dir = 0;}
-		else if(c=='d') {the_ball.x_dir = 1;    the_ball.y_dir = 0;}
-		ball_move();
+        if(y>TOP_ROW && y<BOT_ROW && x>LEFT_EDGE+1 && x<RIGHT_EDGE-1){
+                bp->y_pos = y;
+		bp->x_pos = x;
 	}
+	
 }
-
-int set_ticker(int n_msecs){
-        struct itimerval new_timeset;
-        long n_sec, n_usecs;
-
-        n_sec = n_msecs/1000;
-        n_usecs = (n_msecs%1000) * 1000L;
-
-        new_timeset.it_interval.tv_sec = n_sec;
-        new_timeset.it_interval.tv_usec = n_usecs;
-        new_timeset.it_value.tv_sec = n_sec;
-        new_timeset.it_value.tv_usec = n_usecs;
-
-        return setitimer(ITIMER_REAL, &new_timeset, NULL);
-}
-
