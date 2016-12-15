@@ -26,9 +26,9 @@ void set_score(int, int);			//점수 계산
 void *move_obs(void *);				//장애물 움직임
 
 int is_ended();
-
+void game_over();
 pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
-//pthread_t threads[NUM_ROAD];
+struct obstacle the_obstacle[NUM_ROAD];
 
 int is_game_over = 0;
 int input;
@@ -45,35 +45,43 @@ int main(){
 
 int crossy_road(){
  	
-	int i;
-	dif = level_choose();
-	
-	struct obstacle the_obstacle[NUM_ROAD];
-	pthread_t threads[NUM_ROAD];
-	set_up(the_obstacle);
-
-	for(i =0 ; i < NUM_ROAD; i++)
-		if(pthread_create(&threads[i], NULL, move_obs, &the_obstacle[i])){		
-			fprintf(stderr,"Error with creating thread");
-			endwin();
-			exit(0);
-		}
-	input = getchar();
-        while(!is_ended()){
-                if(input=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
-                else if(input=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
-                else if(input=='a') {the_ball.x_dir = -2;   the_ball.y_dir = 0;}
-                else if(input=='d') {the_ball.x_dir = 2;    the_ball.y_dir = 0;}
-                ball_move();
-		input = getchar();
-        }
-
-	pthread_mutex_lock(&mx);
-	for(i =0; i < NUM_ROAD; i++)
-		pthread_cancel(threads[i]);	
-        
-	endwin();
 		
+	while( is_game_over == 0 || (is_game_over == 1 && score == NUM_ROAD+1)){
+	
+		int i;
+		dif = level_choose();
+		
+		is_game_over =0;
+		score = 0;
+	
+		pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
+		pthread_t threads[NUM_ROAD];
+	
+		memset(&the_obstacle, 0, sizeof(the_obstacle));
+		set_up(the_obstacle);
+
+		for(i =0 ; i < NUM_ROAD; i++)
+			if(pthread_create(&threads[i], NULL, move_obs, &the_obstacle[i])){		
+				fprintf(stderr,"Error with creating thread");
+				endwin();
+				exit(0);
+		}
+		input = getchar();
+        	while(!is_ended()){
+                	if(input=='w')      {the_ball.y_dir = -2;   the_ball.x_dir = 0;}
+                	else if(input=='s') {the_ball.y_dir = 2;    the_ball.x_dir = 0;}
+                	else if(input=='a') {the_ball.x_dir = -2;   the_ball.y_dir = 0;}
+                	else if(input=='d') {the_ball.x_dir = 2;    the_ball.y_dir = 0;}
+                	ball_move();
+			input = getchar();
+        	}
+
+		pthread_mutex_lock(&mx);
+		for(i =0; i < NUM_ROAD; i++)
+			pthread_cancel(threads[i]);	
+        
+		endwin();
+	}	
 	return 0;
 }
 
@@ -256,6 +264,11 @@ int level_choose(){
 	mvaddstr(20,35,"Choose your level(1~5) : ");
 	ch = getch();
 	addch(ch);
+	if(ch =='Q'){
+		game_over();
+		exit(0);
+	}
+		
 	level = atoi(&ch);
 	move(LINES-1, 0);
 	refresh();
@@ -293,7 +306,6 @@ void init_obs(struct obstacle the_obstacle[]){
 		the_obstacle[i].delay = 1+(rand()%5)+(5-dif);
 		the_obstacle[i].dir = ((rand()%2)?1:-1);
 		the_obstacle[i].idx = i;
-//		the_obstacle[i].col = rand()%EFT_EDGE+2;
 		the_obstacle[i].col = (rand()%(RIGHT_EDGE-LEFT_EDGE-2*LENGTH))+LEFT_EDGE+2;
 	}
 }
@@ -409,10 +421,24 @@ void *move_obs(void *arg){
 }
 
 int is_ended(){
-	if( input == 'Q'||score == NUM_ROAD+1 || is_game_over == 1)
-	
+	if( input == 'Q'||score == NUM_ROAD+1 ||is_game_over == 1)
+		if(score == NUM_ROAD+1 ||(score == NUM_ROAD+1 && is_game_over == 1))
 			return 1;
+		else{
+			game_over();
+			exit(0);
+		}
 	
+    return 0;
+}
 
-	return 0;
+void game_over(){
+	
+	initscr();
+	clear();
+	mvaddstr(25,35, "GAME_OVER");
+	move(LINES-1, COLS-1);
+	refresh();
+	getch();
+	endwin();	
 }
